@@ -1,0 +1,174 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+parameters:
+  # Corresponds to a subfolder name in the repo
+  - name: envType
+    displayName: Environment Type
+    type: string
+    values:
+      - nsg
+
+
+  - name: Deploy
+    displayName: Deploy the Plan
+    type: boolean
+    default: false
+  - name: azpowershell
+    displayName: az-powershell
+    type: boolean
+    default: false
+  - name: azurecli
+    displayName: azurecli
+    type: boolean
+    default: false
+  - name: Destroy
+    displayName: Destroy all resources
+    type: boolean
+    default: false
+  
+trigger:
+- none
+
+resources:
+- repo: self
+
+variables:
+  - template: ../variables/nsg-rule-update-variables.yaml
+
+stages:
+- stage: Build
+  displayName: Build&Deploy
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      name: CVS-AgentPool
+    steps:
+          - task: CopyFiles@2
+            inputs:
+              sourceFolder: ./nsg-rule-modify/${{ parameters.envType }}
+              targetFolder: ./
+          - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+            displayName: Terraform Install
+            inputs:
+              terraformVersion: $(terraformVersion)
+          
+          - task: TerraformTaskV1@0
+            displayName: Terraform Initialization
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+
+          - task: TerraformTaskV1@0
+            displayName: Terraform Validation
+            inputs:
+              provider: 'azurerm'
+              command: 'validate'
+
+          - task: TerraformTaskV1@0
+            displayName: Terraform Plan
+            inputs:
+              provider: 'azurerm'
+              command: 'plan'
+              commandOptions: '-out tfplannsg.bin'
+              environmentServiceNameAzureRM: $(serviceConnection)
+
+  - job: Deploy
+    displayName: Deploy Plan
+    dependsOn: [Build]
+    condition: and( not(failed()), not(canceled()), eq('${{ parameters.deploy }}', true))
+    pool:
+      name: CVS-AgentPool
+    steps:
+      - task: CopyFiles@2
+        inputs:
+          sourceFolder: ./nsg-rule-modify/${{ parameters.envType }}
+          targetFolder: ./
+      - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+        displayName: Terraform Install
+        inputs:
+          terraformVersion: $(terraformVersion)
+          
+      - task: TerraformTaskV1@0
+        displayName: Terraform Initialization
+        inputs:
+          provider: 'azurerm'
+          command: 'init'
+          backendServiceArm: $(serviceConnection)
+          backendAzureRmResourceGroupName: $(backendAzureRmResourceGroupName)
+          backendAzureRmStorageAccountName: $(backendAzureRmStorageAccountName)
+          backendAzureRmContainerName: $(backendAzureRmContainerName)
+          backendAzureRmKey: $(backendAzureRmKey)   
+
+      - task: TerraformTaskV1@0
+        displayName: Terraform Apply
+        enabled: true
+        condition: eq('${{ parameters.deploy }}', true)
+        inputs:
+          provider: 'azurerm'
+          command: 'apply'
+          commandOptions: '-var backendAzureRmResourceGroupName=$(backendAzureRmResourceGroupName) -var backendAzureRmStorageAccountName=$(backendAzureRmStorageAccountName) -var backendAzureRmContainerName=$(backendAzureRmContainerName) -var backendAzureRmKey=$(backendAzureRmKey)'
+          environmentServiceNameAzureRM: $(serviceConnection)
+
+      
+  - job: azurecli
+    displayName: azurecli
+    #dependsOn: [Build,Deploy]
+    condition: and( not(failed()), not(canceled()), eq('${{ parameters.azurecli }}', true))    
+    pool:
+      name: CVS-AgentPool
+    steps:
+      - task: AzureCLI@2
+        displayName: azurecli
+        inputs:
+          azureSubscription: $(serviceConnection)
+          scriptType: batch
+          failOnStandardError: false
+          powerShellErrorActionPreference: 'silentlyContinue'
+          continueOnError: true
+          scriptLocation: inlineScript
+          inlineScript: |
+            call az version
+            call az account set --subscription "Retail ACN Non-Production"
+            call az role assignment create --assignee 20f8f848-370d-4be4-b2c2-e78f28d52931 --role "Storage Blob Data Contributor" --scope "/subscriptions/ec909cb4-3561-470e-aea1-d714d982a7a9/resourceGroups/rtl-06-d1-fe-app-rg-001"
+
+
+  - job: Destroy
+    displayName: Destroy Plan
+    dependsOn: [Build]
+    condition: and( not(failed()), not(canceled()), eq('${{ parameters.destroy }}', true))    
+    pool:
+      name: CVS-AgentPool
+    steps:
+      - task: CopyFiles@2
+        inputs:
+          sourceFolder: ./nsg-rule-modify/${{ parameters.envType }}
+          targetFolder: ./
+          
+      - task: ms-devlabs.custom-terraform-tasks.custom-terraform-installer-task.TerraformInstaller@0
+        displayName: Terraform Install
+        inputs:
+          terraformVersion: $(terraformVersion)
+
+      - task: TerraformTaskV1@0
+        displayName: Terraform Initialization
+        inputs:
+          provider: 'azurerm'
+          command: 'init'
+          backendServiceArm: $(serviceConnection)
+          backendAzureRmResourceGroupName: $(backendAzureRmResourceGroupName)
+          backendAzureRmStorageAccountName: $(backendAzureRmStorageAccountName)
+          backendAzureRmContainerName: $(backendAzureRmContainerName)
+          backendAzureRmKey: $(backendAzureRmKey)
+      - task: TerraformTaskV1@0
+        displayName: Terraform Destroy
+        enabled: true
+        condition: eq('${{ parameters.destroy }}', true)
+        inputs:
+          provider: 'azurerm'
+          command: 'destroy'
+          commandOptions: '-var backendAzureRmResourceGroupName=$(backendAzureRmResourceGroupName) -var backendAzureRmStorageAccountName=$(backendAzureRmStorageAccountName) -var backendAzureRmContainerName=$(backendAzureRmContainerName) -var backendAzureRmKey=$(backendAzureRmKey)'
+          environmentServiceNameAzureRM: $(serviceConnection)
+

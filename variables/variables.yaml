@@ -1,0 +1,13 @@
+variables:
+  - name: terraformVersion
+    value: 0.14.10
+  - name: serviceConnection
+    value: SC-Retail_ACN_Non-Production
+  - name: backendAzureRmResourceGroupName
+    value: rtl-06-d1-fe-app-rg-001
+  - name: backendAzureRmStorageAccountName
+    value: rtl06d1diagsas001
+  - name: backendAzureRmContainerName
+    value: terraform-dev
+  - name: backendAzureRmKey
+    value: nsg-rule-modify-test1.tf
