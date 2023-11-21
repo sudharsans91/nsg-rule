@@ -9,11 +9,13 @@ terraform {
     }
   }
 
-  backend "local" {
-    path = "./NSG-List-CSV/rulemodify.tfstate"
+  backend "azurerm" {
+    resource_group_name  = var.backendAzureRmResourceGroupName
+    storage_account_name = var.backendAzureRmStorageAccountName
+    container_name       = var.backendAzureRmContainerName
+    key                  = var.backendAzureRmKey
   }
 }
-
 
 data "azurerm_subscription" "primary" {
 }
@@ -21,4 +23,3 @@ data "azurerm_subscription" "primary" {
 provider "azurerm" {
   features {}
 }
-
