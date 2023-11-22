@@ -1,5 +1,5 @@
 locals {
-  nsgs = csvdecode(file("./NSG-List-CSV/NSG-List.csv"))
+  nsgs = csvdecode(file("./NSG-CSV/nsg-list.csv"))
 }
 
 data "azurerm_network_security_group" "imported_nsgs" {
