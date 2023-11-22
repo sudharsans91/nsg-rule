@@ -17,7 +17,7 @@ resource "azurerm_network_security_group" "modified_nsgs" {
   resource_group_name = each.value.resource_group_name
 
   security_rule {
-    name                       = "CVS-AllowIn-App-Test-rule1-TCP"
+    name                       = "AllowIn-App-Test-rule1-TCP"
     priority                   = 100
     direction                  = "Inbound"
     access                     = "Allow"
